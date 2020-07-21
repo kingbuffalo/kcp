@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
+#include <fcntl.h>
 
 #include "ikcp.h"
 
@@ -50,7 +51,7 @@ static inline IUINT32 iclock()
 
 int udp_output(const char *buf, int len, ikcpcb *kcp, void *user)
 {
-	sendto(sockfd,buf,len,0,(struct sockaddr *)user,len);
+	sendto(sockfd,buf,len,0,(struct sockaddr *)user,sizeof(struct sockaddr));
 	return 0;
 }
 
@@ -60,19 +61,17 @@ void* echo(void* arg){
 	socklen_t len;
 	len = sizeof(svraddr);
 	for(;;){
-		cout << "cli echo loop" <<endl;
+		//cout << "cli echo loop" <<endl;
 		ikcp_update(kcp1,iclock());
 		while(1){
-			cout << "cli echo loop while1" << endl;
 			n = recvfrom(sockfd,msg,MAXLEN,0,(struct sockaddr*)&svraddr,&len);
 			if ( n < 0 ) break;
 			ikcp_input(kcp1,msg,n);
 		}
 		while(1){
-			cout << "cli echo loop while2" <<endl;
 			n = ikcp_recv(kcp1,msg,MAXLEN);
 			if ( n < 0  ) break;
-			cout << msg << endl;
+			cout << "len="<< n << ",msg:" << msg << endl;
 		}
 		//sendto(sockfd,msg,n,0,client,len);
 		usleep(10*1000);
@@ -81,15 +80,23 @@ void* echo(void* arg){
 
 int main(int argc, const char *argv[])
 {
+	const char *ip;
+	if ( argc <=1  ){
+		ip = "59.110.22.107";
+	}else{
+		ip = argv[1];
+	}
 	cout << "echo cli start" <<endl;
 	srand((unsigned)time(NULL));
 
 	sockfd = socket(AF_INET,SOCK_DGRAM,0);
+	int flags = fcntl(sockfd,F_GETFL,0);
+	fcntl(sockfd,F_SETFL,flags|O_NONBLOCK);
 
 	bzero(&svraddr, sizeof(svraddr));
 	svraddr.sin_family = AF_INET;
 	svraddr.sin_port = htons(PORT);
-	svraddr.sin_addr.s_addr =inet_addr("127.0.0.1");
+	svraddr.sin_addr.s_addr =inet_addr(ip);
 	if ( connect(sockfd,(struct sockaddr*)&svraddr,sizeof(svraddr)) == -1){
 		cout << "connect error" <<endl;
 		exit(1);
@@ -101,7 +108,7 @@ int main(int argc, const char *argv[])
 	ikcp_nodelay(kcp1, 0, 10, 0, 0);
 
 
-	char writeMsg[MSGLEN] = {0};
+	char writeMsg[MSGLEN+1] = {0};
 
 	pthread_t  th1;
 	if ( pthread_create(&th1,NULL,echo,NULL) ){
@@ -116,7 +123,7 @@ int main(int argc, const char *argv[])
 			char c = 'a' + ic;
 			writeMsg[i] = c;
 		}
-		//cout << "send   " << writeMsg <<endl;
+		writeMsg[MSGLEN] = 0;
 		ikcp_send(kcp1,writeMsg, MSGLEN);
 		/*
 		   send(sockfd,writeMsg,MSGLEN,0);

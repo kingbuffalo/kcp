@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
+#include <fcntl.h>
 
 using namespace std;
 
@@ -44,7 +45,6 @@ void echo(int sockfd,struct sockaddr* client, socklen_t clilen,ikcpcb* kcp1){
 	char msg[MAXLEN];
 	socklen_t len;
 	for(;;){
-		cout << "svr echo loop" <<endl;
 		len = clilen;
 		ikcp_update(kcp1,iclock());
 		while(1){
@@ -55,7 +55,7 @@ void echo(int sockfd,struct sockaddr* client, socklen_t clilen,ikcpcb* kcp1){
 		while(1){
 			n = ikcp_recv(kcp1,msg,MAXLEN);
 			if ( n < 0  ) break;
-			cout << msg << endl;
+			cout << "len="<< n << ",msg:" << msg << endl;
 			ikcp_send(kcp1,msg, n);
 		}
 		//sendto(sockfd,msg,n,0,client,len);
@@ -65,12 +65,17 @@ void echo(int sockfd,struct sockaddr* client, socklen_t clilen,ikcpcb* kcp1){
 
 int udp_output(const char *buf, int len, ikcpcb *kcp, void *user)
 {
-	sendto(sockfd,buf,len,0,(struct sockaddr *)user,len);
+	sendto(sockfd,buf,len,0,(struct sockaddr *)user,sizeof(struct sockaddr));
 	return 0;
 }
 
 int main(int argc, const char *argv[])
 {
+	if ( argc <=1  ){
+		cout << "need args:  ./echosvr 0.0.0.0" << endl;
+		exit(0);
+	}
+	const char *ip = argv[1];
 	cout << "echo svr start" <<endl;
 	struct sockaddr_in svraddr,cliAddr;
 
@@ -80,10 +85,12 @@ int main(int argc, const char *argv[])
 	ikcp_nodelay(kcp1, 0, 10, 0, 0);
 
 	sockfd = socket(AF_INET,SOCK_DGRAM,0);
+	int flags = fcntl(sockfd,F_GETFL,0);
+	fcntl(sockfd,F_SETFL,flags|O_NONBLOCK);
 	memset(&svraddr,0,sizeof(svraddr));
 	svraddr.sin_family = AF_INET;
 	//svraddr.sin_addr.s_addr = htonl("0.0.0.0");
-	svraddr.sin_addr.s_addr =inet_addr("127.0.0.1");
+	svraddr.sin_addr.s_addr =inet_addr(ip);
 	svraddr.sin_port = htons(PORT);
 
 	bind(sockfd,(struct sockaddr*)&svraddr,sizeof(svraddr));
