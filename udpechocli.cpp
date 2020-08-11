@@ -12,14 +12,20 @@
 
 using namespace std;
 
-#define PORT 9991
+#define PORT 9981
 //#define IP "59.110.22.107"
 #define IP "127.0.0.1"
-#define MAXLEN 4096
-#define MSGLEN 256
+#define MSGLEN 255
 
 int main(int argc, const char *argv[])
 {
+
+	if ( argc < 2 ){
+		cout << "./cli ip" <<endl;
+		return 1;
+	}
+	const char *ip = argv[1];
+
 	cout << "echo cli start" <<endl;
 	srand((unsigned)time(NULL));
 
@@ -30,7 +36,7 @@ int main(int argc, const char *argv[])
 	bzero(&svraddr, sizeof(svraddr));
 	svraddr.sin_family = AF_INET;
 	svraddr.sin_port = htons(PORT);
-	svraddr.sin_addr.s_addr =inet_addr("127.0.0.1");
+	svraddr.sin_addr.s_addr =inet_addr(ip);
 	if ( connect(sockfd,(struct sockaddr*)&svraddr,sizeof(svraddr)) == -1){
 		cout << "connect error" <<endl;
 		exit(1);
